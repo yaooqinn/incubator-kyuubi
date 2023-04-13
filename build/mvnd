@@ -35,7 +35,7 @@ fi
 ## Arg2 - Tarball Name
 ## Arg3 - Checkable Binary
 install_app() {
-  local remote_tarball="$1/$2"
+  local remote_tarball="$1/$2$4"
   local local_tarball="${_DIR}/$2"
   local binary="${_DIR}/$3"
 
@@ -105,16 +105,33 @@ function install_mvnd() {
   function version { echo "$@" | awk -F. '{ printf("%03d%03d%03d\n", $1,$2,$3); }'; }
 
   if [ $(version $MVND_DETECTED_VERSION) -ne $(version $MVND_VERSION) ]; then
-    local APACHE_MIRROR=${APACHE_MIRROR:-'https://downloads.apache.org'}
+    local APACHE_MIRROR=${APACHE_MIRROR:-'https://www.apache.org/dyn/closer.lua'}
+    local MIRROR_URL_QUERY="?action=download"
+
     local OS_TYPE=$(get_os_type)
     local ARCH=$(get_os_arch)
+    local MVND_TARBALL="maven-mvnd-${MVND_VERSION}-${OS_TYPE}-${ARCH}.tar.gz"
+    # shellcheck disable=SC1009
+    local FILE_PATH="maven/mvnd/${MVND_VERSION}"
+
+    if [ $(command -v curl) ]; then
+      if ! curl -L --output /dev/null --silent --head --fail "${APACHE_MIRROR}/${FILE_PATH}/${MVND_TARBALL}${MIRROR_URL_QUERY}" ; then
+        # Fall back to archive.apache.org for older Maven
+        echo "Falling back to archive.apache.org to download Maven"
+        APACHE_MIRROR="https://archive.apache.org/dist"
+        MIRROR_URL_QUERY=""
+      fi
+    fi
+
+    local MVND_BIN_NEW="maven-mvnd-${MVND_VERSION}-${OS_TYPE}-${ARCH}/bin/mvnd"
 
     install_app \
-      "${APACHE_MIRROR}/maven/mvnd/${MVND_VERSION}" \
-      "maven-mvnd-${MVND_VERSION}-${OS_TYPE}-${ARCH}.tar.gz" \
-      "maven-mvnd-${MVND_VERSION}-${OS_TYPE}-${ARCH}/bin/mvnd"
+      "${APACHE_MIRROR}/${FILE_PATH}" \
+      "${MVND_TARBALL}" \
+      "${MVND_BIN_NEW}" \
+      "${MIRROR_URL_QUERY}"
 
-    MVND_BIN="${_DIR}/maven-mvnd-${MVND_VERSION}-${OS_TYPE}-${ARCH}/bin/mvnd"
+    MVND_BIN="${_DIR}${MVND_BIN_NEW}"
   else
     if [ "$(version $MVN_DETECTED_VERSION)" -ne "$(version $MVN_VERSION)" ]; then
       echo "Mvnd $MVND_DETECTED_VERSION embedded maven version $MVN_DETECTED_VERSION is not equivalent to $MVN_VERSION required in pom."
